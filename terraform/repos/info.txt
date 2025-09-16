@@ -1,0 +1,1 @@
+aqui ficam guardadas as informações dos repos criados a partir do terraform
