@@ -37,6 +37,10 @@ on:
         default: ''
         type: string
 
+# permissao pro bot commitar e dar push
+permissions:
+  contents: write
+
 jobs:
   criar-repo:
 
@@ -99,3 +103,12 @@ jobs:
         run: terraform -chdir=terraform/repos/${{ github.event.inputs.nome }} apply -auto-approve
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Commit e push post create
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${TOKEN}@github.com/${{ github.repository }}
+          git add .
+          git commit -m "create: criado repositório ${{ github.event.inputs.nome }}"
+          git push
