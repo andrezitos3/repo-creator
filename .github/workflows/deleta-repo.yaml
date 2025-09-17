@@ -1,0 +1,84 @@
+name: Deletar repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      nome:
+        description: 'Nome do repositório a ser deletado.'
+        required: true
+        default: 'repo-teste'
+        type: string
+
+# permissao pro bot commitar e dar push
+permissions:
+  contents: write
+
+jobs:
+  deletar-repo:
+    if: github.actor == 'andrezitos3'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform !!
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Setup GitHub CLI
+        uses: cli/cli-action@v2
+
+      
+      - name: Check if repo exists 🔍
+        id: check-repo
+        run: |
+          if gh repo view andrezitos3/${{ github.event.inputs.nome }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Verifica se o repo existe no diretorio terraform
+        run: |
+          if [ ! -d "terraform/repos/${{ github.event.inputs.nome }}" ]; then
+            echo "❌ Repositório não encontrado no state: ${{ github.event.inputs.nome }}"
+            exit 1
+          fi
+
+      
+      - name: Fail if repo not found 👎👎
+        if: steps.check-repo.outputs.exists == 'false'
+        run: |
+          echo "❌ Repositório '${{ github.event.inputs.nome }}' não encontrado no GitHub."
+          exit 1
+
+      # 🛠 Terraform Init + Destroy
+      - name: Terraform Init
+        if: steps.check-repo.outputs.exists == 'true'
+        run: terraform -chdir=terraform/repos/${{ github.event.inputs.nome }} init
+
+      - name: Terraform Destroy 💥 · 💣 · 🔥 · ☠️
+        if: steps.check-repo.outputs.exists == 'true'
+        run: terraform -chdir=terraform/repos/${{ github.event.inputs.nome }} destroy -auto-approve
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      # 🧹 Limpa a pasta local do state
+      - name: Cleanup local Terraform state
+        if: steps.check-repo.outputs.exists == 'true'
+        run: rm -rf terraform/repos/${{ github.event.inputs.nome }}
+
+      # commit e push das mudanças
+      - name: Commit and push post delete 
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${TOKEN}@github.com/${{ github.repository }}
+          git add .
+          git commit -m "delete: removido repositório ${{ github.event.inputs.nome }}"
+          git push

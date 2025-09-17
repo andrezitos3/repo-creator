@@ -1,1 +1,2 @@
-aqui ficam guardadas as informações dos repos criados a partir do terraform
+aqui ficam guardadas as informações e estados dos repos criados a partir do
+workflow que dispara o terraform
