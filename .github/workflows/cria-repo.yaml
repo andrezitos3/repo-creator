@@ -1,0 +1,101 @@
+name: Criar repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      nome:
+        description: 'Nome do repositório'
+        required: true
+        default: 'repo-teste'
+        type: string
+      branch-default:
+        description: 'Digite qual a branch default a ser criada. Ex: main / master'
+        required: true
+        default: 'main'
+        type: string
+      tipo:
+        description: 'Selecione o tipo de aplicação'
+        required: true
+        default: 'java (spring boot + maven)'
+        type: choice
+        options:
+         - java (spring boot + maven)
+         - angular (node js)
+      protect-branch-rule:
+        description: 'Deseja que a branch default seja protegida? (obrigatório abrir PRs)'
+        required: false
+        default: false
+        type: boolean
+      pr-merge-check:
+        description: 'Deseja aplicar merge check antes do push na branch default? (validações de build + tests)'
+        required: false
+        default: false
+        type: boolean
+      variaveis-repo:
+        description: 'Digite aqui as variáveis de repo que deseja criar (payload json em base64)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  criar-repo:
+
+    if: github.actor == 'andrezitos3'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      # checkout no repo
+      - uses: actions/checkout@v4
+
+      # permissão de execução dos scripts
+      - name: Set script permissions 🧐
+        run: chmod +x scripts/*.sh
+
+      # instalando terraform
+      - name: Setup Terraform !!
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      # 3. Decode repo variables (se passadas as variáveis)
+      - name: Decode repo variables 🐱 💻
+        id: decode-vars
+        if: ${{ github.event.inputs.variaveis-repo != '' }}
+        run: ./scripts/decode-repo-variables.sh
+        env:
+          REPO_VARIABLES: ${{ github.event.inputs.variaveis-repo }}
+
+      # 4. set required checks (se habilitado merge check)
+      - name: Set required checks 🚧
+        id: checks
+        if: ${{ github.event.inputs.pr-merge-check == 'true' }}
+        run: ./scripts/set-required-checks.sh
+        env:
+          APP_TYPE: ${{ github.event.inputs.tipo }}
+
+      # 5. Generate Terraform config
+      - name: Generate Terraform config 👩‍🍳
+        run: ./scripts/terraform-config.sh
+        env:
+          REPO_NAME: ${{ github.event.inputs.nome }}
+          BRANCH_DEFAULT: ${{ github.event.inputs.branch-default }}
+          PROTECT_BRANCH_RULE: ${{ github.event.inputs.protect-branch-rule }}
+          PR_MERGE_CHECK: ${{ github.event.inputs.pr-merge-check }}
+          REQUIRED_CHECKS: ${{ steps.checks.outputs.checks }}
+          REPO_VARIABLES_JSON: ${{ steps.decode-vars.outputs.vars }}
+        
+      # 6. TF Init + validate + plan + apply
+      - name: Terraform Init
+        run: terraform -chdir=terraform/repos/${{ github.event.inputs.nome }} init
+
+      - name: Terraform Validate
+        run: terraform -chdir=terraform/repos/${{ github.event.inputs.nome }} validate
+
+      - name: Terraform Plan
+        run: terraform -chdir=terraform/repos/${{ github.event.inputs.nome }} plan
+
+      - name: Terraform Apply
+        run: terraform -chdir=terraform/repos/${{ github.event.inputs.nome }} apply -auto-approve
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}

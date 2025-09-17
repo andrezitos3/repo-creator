@@ -1,0 +1,32 @@
+name: CI frontend
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-angular:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    # Faz o checkout do código
+    - uses: actions/checkout@v4
+
+    # Setup Node.js
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18' # <- por isso numa variavel
+        cache: 'npm'
+
+    # Instala dependências
+    - name: Install dependencies
+      run: npm install
+
+    # build do projeto Angular
+    - name: Build
+      run: npm run build
+    
